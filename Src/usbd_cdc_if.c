@@ -95,6 +95,9 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
+uint8_t newData = 0;
+uint8_t led = 0;
+
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -261,6 +264,13 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
+  uint16_t len = *Len;
+  CDC_Transmit_FS(Buf, len);
+
+  led = Buf[0];
+  newData = 1;
+
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -291,6 +301,17 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+
+uint8_t Get_Led(void)
+{
+  if (newData ==  1) {
+    newData = 0;
+  } else {
+    led = 0;
+  }
+
+  return led;
+}
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 

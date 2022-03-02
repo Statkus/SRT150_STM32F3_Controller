@@ -54,6 +54,11 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
+void M1_Handler(void);
+void M2_Handler(void);
+void M3_Handler(void);
+void M4_Handler(void);
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

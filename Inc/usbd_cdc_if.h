@@ -52,6 +52,17 @@
 #define APP_TX_DATA_SIZE  1000
 /* USER CODE BEGIN EXPORTED_DEFINES */
 
+#define MESSAGE_SIZE        9
+#define DEBUG_MESSAGE_SIZE 30
+
+#define MIN_POS     0
+#define MAX_POS 64000
+
+// Speed in us/half step (lower is faster)
+#define MIN_SPEED        10
+#define MAX_SPEED     65535
+#define DEFAULT_SPEED    10
+
 /* USER CODE END EXPORTED_DEFINES */
 
 /**
@@ -109,7 +120,15 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
 
-uint8_t Get_Led(void);
+uint16_t Get_M1_Pos_Target(void);
+uint16_t Get_M2_Pos_Target(void);
+uint16_t Get_M3_Pos_Target(void);
+uint16_t Get_M4_Pos_Target(void);
+
+uint16_t Get_M1_Speed(void);
+uint16_t Get_M2_Speed(void);
+uint16_t Get_M3_Speed(void);
+uint16_t Get_M4_Speed(void);
 
 /* USER CODE END EXPORTED_FUNCTIONS */
 

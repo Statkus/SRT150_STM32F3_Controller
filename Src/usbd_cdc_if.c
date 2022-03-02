@@ -23,6 +23,8 @@
 
 /* USER CODE BEGIN INCLUDE */
 
+#include <stdlib.h>
+
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -95,8 +97,15 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
-uint8_t newData = 0;
-uint8_t led = 0;
+uint16_t M1_Pos_Target = MIN_POS;
+uint16_t M2_Pos_Target = MIN_POS;
+uint16_t M3_Pos_Target = MIN_POS;
+uint16_t M4_Pos_Target = MIN_POS;
+
+uint16_t M1_Speed = DEFAULT_SPEED;
+uint16_t M2_Speed = DEFAULT_SPEED;
+uint16_t M3_Speed = DEFAULT_SPEED;
+uint16_t M4_Speed = DEFAULT_SPEED;
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -265,11 +274,38 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
-  uint16_t len = *Len;
-  CDC_Transmit_FS(Buf, len);
+  switch (Buf[0]) {
+    case 'P':
+      if (*Len >= MESSAGE_SIZE) {
+        M1_Pos_Target = MAX (MIN ((Buf[1] << 8) + Buf[2], MAX_POS), MIN_POS);
+        M2_Pos_Target = MAX (MIN ((Buf[3] << 8) + Buf[4], MAX_POS), MIN_POS);
+        M3_Pos_Target = MAX (MIN ((Buf[5] << 8) + Buf[6], MAX_POS), MIN_POS);
+        M4_Pos_Target = MAX (MIN ((Buf[7] << 8) + Buf[8], MAX_POS), MIN_POS);
+      }
+      break;
 
-  led = Buf[0];
-  newData = 1;
+    case 'D':
+      if (*Len >= DEBUG_MESSAGE_SIZE) {
+        const char M1_Pos_String[6] = {Buf[1], Buf[2], Buf[3], Buf[4], Buf[5], '\0'};
+        const char M2_Pos_String[6] = {Buf[7], Buf[8], Buf[9], Buf[10], Buf[11], '\0'};
+        const char M3_Pos_String[6] = {Buf[13], Buf[14], Buf[15], Buf[16], Buf[17], '\0'};
+        const char M4_Pos_String[6] = {Buf[19], Buf[20], Buf[21], Buf[22], Buf[23], '\0'};
+        const char Speed_String[6] = {Buf[25], Buf[26], Buf[27], Buf[28], Buf[29], '\0'};
+
+        M1_Pos_Target = MAX (MIN (atoi(M1_Pos_String), MAX_POS), MIN_POS);
+        M2_Pos_Target = MAX (MIN (atoi(M2_Pos_String), MAX_POS), MIN_POS);
+        M3_Pos_Target = MAX (MIN (atoi(M3_Pos_String), MAX_POS), MIN_POS);
+        M4_Pos_Target = MAX (MIN (atoi(M4_Pos_String), MAX_POS), MIN_POS);
+        M1_Speed      = MAX (MIN (atoi(Speed_String), MAX_SPEED), MIN_SPEED);
+        M2_Speed      = M1_Speed;
+        M3_Speed      = M1_Speed;
+        M4_Speed      = M1_Speed;
+      }
+      break;
+
+    default:
+      break;
+  }
 
   return (USBD_OK);
   /* USER CODE END 6 */
@@ -302,15 +338,44 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
-uint8_t Get_Led(void)
+uint16_t Get_M1_Pos_Target(void)
 {
-  if (newData ==  1) {
-    newData = 0;
-  } else {
-    led = 0;
-  }
+  return M1_Pos_Target;
+}
 
-  return led;
+uint16_t Get_M2_Pos_Target(void)
+{
+  return M2_Pos_Target;
+}
+
+uint16_t Get_M3_Pos_Target(void)
+{
+  return M3_Pos_Target;
+}
+
+uint16_t Get_M4_Pos_Target(void)
+{
+  return M4_Pos_Target;
+}
+
+uint16_t Get_M1_Speed(void)
+{
+  return M1_Speed;
+}
+
+uint16_t Get_M2_Speed(void)
+{
+  return M2_Speed;
+}
+
+uint16_t Get_M3_Speed(void)
+{
+  return M3_Speed;
+}
+
+uint16_t Get_M4_Speed(void)
+{
+  return M4_Speed;
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */

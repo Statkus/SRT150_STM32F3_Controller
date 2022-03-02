@@ -30,6 +30,8 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+enum Motor_State {WAIT_FOR_PUL_DOWN, WAIT_FOR_PUL_UP};
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -49,6 +51,26 @@ TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
 
+enum Motor_State M1_State = WAIT_FOR_PUL_UP;
+enum Motor_State M2_State = WAIT_FOR_PUL_UP;
+enum Motor_State M3_State = WAIT_FOR_PUL_UP;
+enum Motor_State M4_State = WAIT_FOR_PUL_UP;
+
+uint16_t M1_Pos = 0;
+uint16_t M2_Pos = 0;
+uint16_t M3_Pos = 0;
+uint16_t M4_Pos = 0;
+
+GPIO_PinState M1_Dir = GPIO_PIN_RESET;
+GPIO_PinState M2_Dir = GPIO_PIN_RESET;
+GPIO_PinState M3_Dir = GPIO_PIN_RESET;
+GPIO_PinState M4_Dir = GPIO_PIN_RESET;
+
+uint8_t Timer_M1_Busy = 0;
+uint8_t Timer_M2_Busy = 0;
+uint8_t Timer_M3_Busy = 0;
+uint8_t Timer_M4_Busy = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,6 +81,21 @@ static void MX_TIM4_Init(void);
 static void MX_TIM15_Init(void);
 static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
+
+void M_Handler
+ (enum Motor_State *State,
+  uint16_t *Pos,
+  uint16_t Pos_Target,
+  uint16_t Speed,
+  GPIO_PinState *Dir,
+  GPIO_TypeDef *PUL_GPIO_Port,
+  uint16_t PUL_Pin,
+  GPIO_TypeDef *DIR_GPIO_Port,
+  uint16_t DIR_Pin,
+  GPIO_TypeDef *LED_GPIO_Port,
+  uint16_t LED_Pin,
+  uint8_t *Timer_Busy,
+  TIM_HandleTypeDef *htim);
 
 /* USER CODE END PFP */
 
@@ -102,8 +139,10 @@ int main(void)
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
-  uint8_t Buf[2] = {79, 75};
-  uint16_t Len = 2;
+  HAL_GPIO_WritePin (M1_PUL_GPIO_Port, M1_PUL_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin (M2_PUL_GPIO_Port, M2_PUL_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin (M3_PUL_GPIO_Port, M3_PUL_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin (M4_PUL_GPIO_Port, M4_PUL_Pin, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
@@ -117,17 +156,37 @@ int main(void)
 
     if (HAL_GPIO_ReadPin (B1_GPIO_Port, B1_Pin) == GPIO_PIN_SET) {
       HAL_GPIO_WritePin (LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
-      CDC_Transmit_FS (Buf, Len);
     } else {
       HAL_GPIO_WritePin (LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
     }
 
-    uint8_t led = Get_Led();
+    uint16_t M1_Pos_Target = Get_M1_Pos_Target();
+    uint16_t M2_Pos_Target = Get_M2_Pos_Target();
+    uint16_t M3_Pos_Target = Get_M3_Pos_Target();
+    uint16_t M4_Pos_Target = Get_M4_Pos_Target();
 
-    if (led == 65) {
-      HAL_GPIO_WritePin (LD4_GPIO_Port, LD4_Pin, GPIO_PIN_SET);
-    } else if (led == 66) {
-      HAL_GPIO_WritePin (LD4_GPIO_Port, LD4_Pin, GPIO_PIN_RESET);
+    if (Timer_M1_Busy == 0 && M1_Pos != M1_Pos_Target) {
+      Timer_M1_Busy = 1;
+
+      HAL_TIM_Base_Start_IT (&htim3);
+    }
+
+    if (Timer_M2_Busy == 0 && M2_Pos != M2_Pos_Target) {
+      Timer_M2_Busy = 1;
+
+      HAL_TIM_Base_Start_IT (&htim4);
+    }
+
+    if (Timer_M3_Busy == 0 && M3_Pos != M3_Pos_Target) {
+      Timer_M3_Busy = 1;
+
+      HAL_TIM_Base_Start_IT (&htim15);
+    }
+
+    if (Timer_M4_Busy == 0 && M4_Pos != M4_Pos_Target) {
+      Timer_M4_Busy = 1;
+
+      HAL_TIM_Base_Start_IT (&htim16);
     }
   }
   /* USER CODE END 3 */
@@ -397,6 +456,144 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void M_Handler
+ (enum Motor_State *State,
+  uint16_t *Pos,
+  uint16_t Pos_Target,
+  uint16_t Speed,
+  GPIO_PinState *Dir,
+  GPIO_TypeDef *PUL_GPIO_Port,
+  uint16_t PUL_Pin,
+  GPIO_TypeDef *DIR_GPIO_Port,
+  uint16_t DIR_Pin,
+  GPIO_TypeDef *LED_GPIO_Port,
+  uint16_t LED_Pin,
+  uint8_t *Timer_Busy,
+  TIM_HandleTypeDef *htim)
+{
+  htim->Instance->ARR = Speed;
+
+  if (*Pos != Pos_Target) {
+    switch (*State) {
+      case WAIT_FOR_PUL_DOWN: {
+        GPIO_PinState New_Dir = (*Pos < Pos_Target) ? GPIO_PIN_RESET : GPIO_PIN_SET;
+
+        if (New_Dir != *Dir) {
+          HAL_GPIO_WritePin (DIR_GPIO_Port, DIR_Pin, New_Dir);
+
+          *Dir = New_Dir;
+
+          int Count = 20;
+          while (Count > 0) {
+            Count--;
+          }
+        }
+
+        HAL_GPIO_WritePin (PUL_GPIO_Port, PUL_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin (LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+
+        *State = WAIT_FOR_PUL_UP;
+
+        break;
+      }
+
+      case WAIT_FOR_PUL_UP:
+        HAL_GPIO_WritePin (PUL_GPIO_Port, PUL_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin (LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+
+        if (*Dir == GPIO_PIN_RESET) {
+          (*Pos)++;
+        } else {
+          (*Pos)--;
+        }
+
+        *State = WAIT_FOR_PUL_DOWN;
+
+        if (*Pos == Pos_Target) {
+          *Timer_Busy = 0;
+          HAL_TIM_Base_Stop_IT(htim);
+        }
+        break;
+    }
+  } else {
+    *State = WAIT_FOR_PUL_DOWN;
+    *Timer_Busy = 0;
+    HAL_TIM_Base_Stop_IT(htim);
+  }
+}
+
+void M1_Handler(void)
+{
+  M_Handler
+   (&M1_State,
+    &M1_Pos,
+    Get_M1_Pos_Target(),
+    Get_M1_Speed(),
+    &M1_Dir,
+    M1_PUL_GPIO_Port,
+    M1_PUL_Pin,
+    M1_DIR_GPIO_Port,
+    M1_DIR_Pin,
+    LD5_GPIO_Port,
+    LD5_Pin,
+    &Timer_M1_Busy,
+    &htim3);
+}
+
+void M2_Handler(void)
+{
+  M_Handler
+   (&M2_State,
+    &M2_Pos,
+    Get_M2_Pos_Target(),
+    Get_M2_Speed(),
+    &M2_Dir,
+    M2_PUL_GPIO_Port,
+    M2_PUL_Pin,
+    M2_DIR_GPIO_Port,
+    M2_DIR_Pin,
+    LD9_GPIO_Port,
+    LD9_Pin,
+    &Timer_M2_Busy,
+    &htim4);
+}
+
+void M3_Handler(void)
+{
+  M_Handler
+   (&M3_State,
+    &M3_Pos,
+    Get_M3_Pos_Target(),
+    Get_M3_Speed(),
+    &M3_Dir,
+    M3_PUL_GPIO_Port,
+    M3_PUL_Pin,
+    M3_DIR_GPIO_Port,
+    M3_DIR_Pin,
+    LD8_GPIO_Port,
+    LD8_Pin,
+    &Timer_M3_Busy,
+    &htim15);
+}
+
+void M4_Handler(void)
+{
+  M_Handler
+   (&M4_State,
+    &M4_Pos,
+    Get_M4_Pos_Target(),
+    Get_M4_Speed(),
+    &M4_Dir,
+    M4_PUL_GPIO_Port,
+    M4_PUL_Pin,
+    M4_DIR_GPIO_Port,
+    M4_DIR_Pin,
+    LD4_GPIO_Port,
+    LD4_Pin,
+    &Timer_M4_Busy,
+    &htim16);
+}
 
 /* USER CODE END 4 */
 

@@ -125,10 +125,7 @@ uint16_t Get_M2_Pos_Target(void);
 uint16_t Get_M3_Pos_Target(void);
 uint16_t Get_M4_Pos_Target(void);
 
-uint16_t Get_M1_Speed(void);
-uint16_t Get_M2_Speed(void);
-uint16_t Get_M3_Speed(void);
-uint16_t Get_M4_Speed(void);
+uint16_t Get_M_Speed(void);
 
 /* USER CODE END EXPORTED_FUNCTIONS */
 

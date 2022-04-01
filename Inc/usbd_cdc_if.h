@@ -61,7 +61,7 @@
 // Speed in us/half step (lower is faster)
 #define MIN_SPEED        10
 #define MAX_SPEED     65535
-#define DEFAULT_SPEED    10
+#define DEFAULT_SPEED    20
 
 /* USER CODE END EXPORTED_DEFINES */
 

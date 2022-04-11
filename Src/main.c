@@ -30,8 +30,6 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-enum Motor_State {WAIT_FOR_PUL_DOWN, WAIT_FOR_PUL_UP};
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -47,8 +45,6 @@ enum Motor_State {WAIT_FOR_PUL_DOWN, WAIT_FOR_PUL_UP};
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-
-enum Motor_State M_State = WAIT_FOR_PUL_DOWN;
 
 uint16_t M_Pos[4] = {0, 0, 0, 0};
 
@@ -89,6 +85,9 @@ const uint16_t M_LED_Pin[4] =
   LD9_Pin,
   LD8_Pin,
   LD4_Pin};
+
+uint16_t M_Delay = DEFAULT_DELAY;
+uint16_t Previous_M_Delay = DEFAULT_DELAY;
 
 uint8_t Timer_Busy = 0;
 
@@ -154,26 +153,45 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    if (HAL_GPIO_ReadPin (B1_GPIO_Port, B1_Pin) == GPIO_PIN_SET) {
-      HAL_GPIO_WritePin (LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
-    } else {
-      HAL_GPIO_WritePin (LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+    if (Is_New_Pos() > 0) {
+      const uint16_t M_Pos_Target[4] =
+       {Get_M1_Pos_Target(),
+        Get_M2_Pos_Target(),
+        Get_M3_Pos_Target(),
+        Get_M4_Pos_Target()};
+      uint16_t Dist[4] = {0};
+
+      for (int i = 0; i < 4; i++) {
+        if (M_Pos[i] > M_Pos_Target[i]) {
+          Dist[i] = M_Pos[i] - M_Pos_Target[i];
+        } else {
+          Dist[i] = M_Pos_Target[i] - M_Pos[i];
+        }
+      }
+
+      if (Dist[0] > 0 ||
+          Dist[1] > 0 ||
+          Dist[2] > 0 ||
+          Dist[3] > 0) {
+        M_Delay = MAX (MESSAGE_PERIOD / MAX (MAX (MAX (Dist[0], Dist[1]), Dist[2]), Dist[3]), MIN_DELAY);
+      }
     }
 
-    const uint16_t M_Pos_Target[4] =
-     {Get_M1_Pos_Target(),
-      Get_M2_Pos_Target(),
-      Get_M3_Pos_Target(),
-      Get_M4_Pos_Target()};
+    if (Timer_Busy == 0) {
+      const uint16_t M_Pos_Target[4] =
+       {Get_M1_Pos_Target(),
+        Get_M2_Pos_Target(),
+        Get_M3_Pos_Target(),
+        Get_M4_Pos_Target()};
 
-    if (Timer_Busy == 0 &&
-       (M_Pos[0] != M_Pos_Target[0] ||
-        M_Pos[1] != M_Pos_Target[1] ||
-        M_Pos[2] != M_Pos_Target[2] ||
-        M_Pos[3] != M_Pos_Target[3])) {
-      Timer_Busy = 1;
+      if (M_Pos[0] != M_Pos_Target[0] ||
+          M_Pos[1] != M_Pos_Target[1] ||
+          M_Pos[2] != M_Pos_Target[2] ||
+          M_Pos[3] != M_Pos_Target[3]) {
+        Timer_Busy = 1;
 
-      HAL_TIM_Base_Start_IT (&htim3);
+        HAL_TIM_Base_Start_IT (&htim3);
+      }
     }
   }
   /* USER CODE END 3 */
@@ -323,86 +341,82 @@ static void MX_GPIO_Init(void)
 
 void M_Handler(void)
 {
-  htim3.Instance->ARR = Get_M_Speed();
-
   const uint16_t M_Pos_Target[4] =
    {Get_M1_Pos_Target(),
     Get_M2_Pos_Target(),
     Get_M3_Pos_Target(),
     Get_M4_Pos_Target()};
 
-  if (M_Pos[0] != M_Pos_Target[0] ||
-      M_Pos[1] != M_Pos_Target[1] ||
-      M_Pos[2] != M_Pos_Target[2] ||
-      M_Pos[3] != M_Pos_Target[3]) {
-    switch (M_State) {
-      case WAIT_FOR_PUL_DOWN: {
-        uint8_t Change_DIR = 0;
+  //const uint16_t M_Delay = Get_M_Delay();
 
-        for (int i = 0; i < 4; i++) {
-          if (M_Pos[i] != M_Pos_Target[i]) {
-            const GPIO_PinState New_Dir =
-             (M_Pos[i] < M_Pos_Target[i]) ? GPIO_PIN_RESET : GPIO_PIN_SET;
+  uint8_t Change_DIR = 0;
 
-            if (New_Dir != M_Dir[i]) {
-              HAL_GPIO_WritePin (M_DIR_GPIO_Port[i], M_DIR_Pin[i], New_Dir);
+  for (int i = 0; i < 4; i++) {
+    if (M_Pos[i] != M_Pos_Target[i]) {
+      const GPIO_PinState New_Dir =
+       (M_Pos[i] < M_Pos_Target[i]) ? GPIO_PIN_RESET : GPIO_PIN_SET;
 
-              M_Dir[i] = New_Dir;
+      if (New_Dir != M_Dir[i]) {
+        HAL_GPIO_WritePin (M_DIR_GPIO_Port[i], M_DIR_Pin[i], New_Dir);
 
-              Change_DIR = 1;
-            }
-          }
-        }
+        M_Dir[i] = New_Dir;
 
-        if (Change_DIR > 0) {
-          int Count = 20;
-          while (Count > 0) {
-            Count--;
-          }
-        }
+        Change_DIR = 1;
+      }
+    }
+  }
 
-        for (int i = 0; i < 4; i++) {
-          if (M_Pos[i] != M_Pos_Target[i]) {
-            HAL_GPIO_WritePin (M_PUL_GPIO_Port[i], M_PUL_Pin[i], GPIO_PIN_RESET);
-            HAL_GPIO_WritePin (M_LED_GPIO_Port[i], M_LED_Pin[i], GPIO_PIN_SET);
-          }
-        }
+  if (Change_DIR > 0) {
+    if (M_Delay < DEFAULT_DELAY) {
+      Previous_M_Delay = DEFAULT_DELAY;
+    } else {
+      Previous_M_Delay = M_Delay;
+    }
 
-        M_State = WAIT_FOR_PUL_UP;
+    //int Count = 15;
+    //while (Count > 0) {
+    //  Count--;
+    //}
+  } else {
+    if (Previous_M_Delay > M_Delay + DEFAULT_DELAY) {
+      Previous_M_Delay = DEFAULT_DELAY;
+    } else if (Previous_M_Delay > M_Delay) {
+      Previous_M_Delay--;
+    } else {
+      Previous_M_Delay = M_Delay;
+    }
+  }
 
-        break;
+  htim3.Instance->ARR = Previous_M_Delay;
+
+  for (int i = 0; i < 4; i++) {
+    if (M_Pos[i] != M_Pos_Target[i]) {
+      HAL_GPIO_WritePin (M_PUL_GPIO_Port[i], M_PUL_Pin[i], GPIO_PIN_RESET);
+      HAL_GPIO_WritePin (M_LED_GPIO_Port[i], M_LED_Pin[i], GPIO_PIN_SET);
+    }
+  }
+
+  for (int i = 0; i < 4; i++) {
+    if (M_Pos[i] != M_Pos_Target[i]) {
+      if (M_Dir[i] == GPIO_PIN_RESET) {
+        M_Pos[i]++;
+      } else {
+        M_Pos[i]--;
       }
 
-      case WAIT_FOR_PUL_UP:
-        for (int i = 0; i < 4; i++) {
-          if (M_Pos[i] != M_Pos_Target[i]) {
-            HAL_GPIO_WritePin (M_PUL_GPIO_Port[i], M_PUL_Pin[i], GPIO_PIN_SET);
-            HAL_GPIO_WritePin (M_LED_GPIO_Port[i], M_LED_Pin[i], GPIO_PIN_RESET);
-
-            if (M_Dir[i] == GPIO_PIN_RESET) {
-              M_Pos[i]++;
-            } else {
-              M_Pos[i]--;
-            }
-          }
-        }
-
-        M_State = WAIT_FOR_PUL_DOWN;
-
-        if (M_Pos[0] == M_Pos_Target[0] &&
-            M_Pos[1] == M_Pos_Target[1] &&
-            M_Pos[2] == M_Pos_Target[2] &&
-            M_Pos[3] == M_Pos_Target[3]) {
-          Timer_Busy = 0;
-          HAL_TIM_Base_Stop_IT(&htim3);
-        }
-
-        break;
+      HAL_GPIO_WritePin (M_PUL_GPIO_Port[i], M_PUL_Pin[i], GPIO_PIN_SET);
+      HAL_GPIO_WritePin (M_LED_GPIO_Port[i], M_LED_Pin[i], GPIO_PIN_RESET);
     }
-  } else {
-    M_State = WAIT_FOR_PUL_DOWN;
-    Timer_Busy = 0;
+  }
+
+  if (M_Pos[0] == M_Pos_Target[0] &&
+      M_Pos[1] == M_Pos_Target[1] &&
+      M_Pos[2] == M_Pos_Target[2] &&
+      M_Pos[3] == M_Pos_Target[3]) {
     HAL_TIM_Base_Stop_IT(&htim3);
+    Previous_M_Delay = DEFAULT_DELAY;
+    htim3.Instance->ARR = DEFAULT_DELAY;
+    Timer_Busy = 0;
   }
 }
 

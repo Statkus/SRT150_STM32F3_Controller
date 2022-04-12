@@ -54,8 +54,6 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
-void M_Handler(void);
-
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -108,6 +106,10 @@ void M_Handler(void);
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
+
+#define DIR_DELAY      2
+#define PUL_DOWN_DELAY 2
+#define WAISTED_DELAY  7
 
 /* USER CODE END Private defines */
 

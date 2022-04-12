@@ -298,6 +298,8 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
         M3_Pos_Target = MAX (MIN (atoi(M3_Pos_String), MAX_POS), MIN_POS);
         M4_Pos_Target = MAX (MIN (atoi(M4_Pos_String), MAX_POS), MIN_POS);
         //M_Delay       = MAX (MIN (atoi(Delay_String), MAX_DELAY), MIN_DELAY);
+
+        New_Pos = 1;
       }
       break;
 

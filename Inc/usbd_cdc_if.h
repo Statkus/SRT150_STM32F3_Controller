@@ -59,8 +59,7 @@
 #define MIN_POS     0
 #define MAX_POS 64000
 
-// Delay in us between steps
-#define MIN_DELAY        20
+#define MIN_DELAY        25
 #define MAX_DELAY     65535
 #define DEFAULT_DELAY    40
 
